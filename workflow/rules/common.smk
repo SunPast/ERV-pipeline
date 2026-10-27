@@ -47,4 +47,11 @@ def all_tool_outputs():
             out.append(f"{OUTDIR}/telescope/{c}/{smp}/{smp}.report.tsv")
         if config["tools"]["squire"]["run"]:
             out.append(f"{OUTDIR}/squire/{c}/{smp}/{smp}_subFcounts.txt")
+        # ERVmap is imported, not rerun, but its normalised table must exist
+        # before aggregation, otherwise the ERVmap column silently stays empty.
+        # tools.ervmap.run=false means "do not re-quantify ERVmap"; importing the
+        # existing raw results is still required.
+        raw = f"{OUTDIR}/ervmap_raw/{c}/{smp}ERVresults.txt"
+        if os.path.exists(raw):
+            out.append(f"{OUTDIR}/ervmap/{c}/{smp}/{smp}.locus.tsv")
     return out

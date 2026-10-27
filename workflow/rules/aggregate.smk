@@ -43,6 +43,7 @@ rule aggregate_expression:
     output:
         long = f"{OUTDIR}/aggregate/erv_expression_long.tsv.gz",
         evid = f"{OUTDIR}/aggregate/erv_subfamily_evidence.tsv.gz",
+        qc = f"{OUTDIR}/aggregate/qc_per_sample.tsv",
     params:
         outdir = OUTDIR,
         min_count = config["filter"]["min_count"],

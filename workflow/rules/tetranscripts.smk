@@ -19,6 +19,7 @@ rule tetranscripts_locus:
     params:
         outdir = lambda wc: sdir("tetranscripts", wc.cohort, wc.sample),
         bam_root = P["bam_root"],
+        extra_bind = " ".join(f"--bind {d}:{d}:ro" for d in P.get("extra_bind", [])),
         ann_dir = f"{OUTDIR}/annotation",
         ref_dir = os.path.dirname(P["gene_gtf"]),
         apptainer = apptainer(),
@@ -30,6 +31,7 @@ rule tetranscripts_locus:
         mkdir -p {params.outdir} && \
         {params.apptainer} exec \
             --bind {params.bam_root}:{params.bam_root}:ro \
+            {params.extra_bind} \
             --bind {params.ann_dir}:{params.ann_dir}:ro \
             --bind {params.ref_dir}:{params.ref_dir}:ro \
             --bind {params.outdir}:{params.outdir} \

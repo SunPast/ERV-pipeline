@@ -7,6 +7,8 @@
 genome: hg38
 annotation_release: GENCODE_v34
 
+samples: config/samples.tsv
+
 paths:
   # ---- reference ----
   genome_fa:      /data/home/dingjia/pipeline/GRCh38.primary_assembly.genome.fa
@@ -43,7 +45,9 @@ paths:
   tetranscripts_sif: /data/data2/envs/images/singularity/tetranscripts.2.2.3.sif
 
   # ---- input data ----
-  bam_root:        /data/data2/IO_RNA/AS        # <bam_root>/<cohort_dir>/aligned/<sample>/*_Aligned.sortedByCoord.out.bam
+  bam_root:        /data/data2/IO_RNA/AS
+  # Some historical BAMs live outside bam_root; containers must mount them too.
+  extra_bind:      ["/data/data1/lx/ERV"]          # historical BAM root outside bam_root
   fastq_root:      /data/data2/IO_RNA           # only needed when squire Map is enabled
 
 # Outputs go to node3 local disk, never to the master NFS mount.

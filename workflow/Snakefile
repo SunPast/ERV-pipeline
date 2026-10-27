@@ -38,3 +38,7 @@ rule all:
         f"{OUTDIR}/standard",
         # annotation audit report
         f"{OUTDIR}/annotation/annotation_check.tsv",
+        # every per-sample output, listed explicitly: relying only on the
+        # aggregate's inputs made `all` silently do nothing when the aggregate
+        # products were already present but the per-sample files were not
+        *all_tool_outputs(),

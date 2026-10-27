@@ -160,6 +160,21 @@ with gzip.open(f"{outdir}/aggregate/erv_expression_long.tsv.gz", "wt") as fo:
     for row in long_rows:
         fo.write("\t".join(map(str, row)) + "\n")
 
+# ---- Per-sample QC: a tool that produced nothing must be visible, not silent ----
+qc = collections.defaultdict(lambda: [0.0, 0])
+for tool, cohort, sample, level, feature, reg, cnt, _md in long_rows:
+    if level != "locus":
+        continue
+    k = (tool, cohort, sample)
+    qc[k][0] += cnt
+    if cnt > 0:
+        qc[k][1] += 1
+with open(f"{outdir}/aggregate/qc_per_sample.tsv", "w") as fq:
+    fq.write("tool\tcohort\tsample\ttotal_counts\tn_positive_loci\tflag\n")
+    for (tool, cohort, sample), (tot, npos) in sorted(qc.items()):
+        flag = "ZERO_COUNTS" if tot <= 0 else ("LOW_COUNTS" if tot < 1000 else "OK")
+        fq.write(f"{tool}\t{cohort}\t{sample}\t{tot:.1f}\t{npos}\t{flag}\n")
+
 # ---- Subfamily evidence table ----
 # A tool supports a subfamily in a cohort if any sample reaches min_count.
 sup = collections.defaultdict(set)

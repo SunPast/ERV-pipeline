@@ -48,6 +48,7 @@ rule squire_count:
         apptainer = apptainer(),
         sif = P["squire_sif"],
         bam_root = P["bam_root"],
+        extra_bind = " ".join(f"--bind {d}:{d}:ro" for d in P.get("extra_bind", [])),
         ann_dir = f"{OUTDIR}/annotation",
     shell:
         """
@@ -55,6 +56,7 @@ rule squire_count:
         ln -sfn {input.bam} {params.outdir}/{wildcards.sample}.bam && \
         {params.apptainer} exec \
             --bind {params.bam_root}:{params.bam_root}:ro \
+            {params.extra_bind} \
             --bind {params.ref}:{params.ref}:ro \
             --bind {params.ann_dir}:{params.ann_dir}:ro \
             --bind {params.outdir}:{params.outdir} \
