@@ -68,13 +68,17 @@ def squire_locus_id(te_id):
 
 for s in samples:
     cohort, sample = s["cohort"], s["sample"]
+    # subfamily totals are summed over loci; emitting one row per locus here
+    # would duplicate the same subfamily thousands of times
+    subsum = collections.defaultdict(float)
 
     # ---- Telescope (locus) ----
     rep = f"{outdir}/telescope/{cohort}/{sample}/{sample}.report.tsv"
     if os.path.exists(rep):
         with open(rep) as fh:
-            next(fh, None)
             for line in fh:
+                if line.startswith("#") or line.startswith("transcript\t"):
+                    continue
                 f = line.rstrip("\n").split("\t")
                 if len(f) < 3:
                     continue
@@ -83,7 +87,7 @@ for s in samples:
                     continue
                 sf, reg = locus2sf[gid]
                 add("telescope", cohort, sample, "locus", gid, reg, cnt, locus_md.get(gid, ""))
-                add("telescope", cohort, sample, "subfamily", sf, reg, cnt)
+                subsum[("telescope", sf, reg)] += cnt
 
     # ---- TEtranscripts / TEcount (locus) ----
     cnt_tbl = f"{outdir}/tetranscripts/{cohort}/{sample}/{sample}.cntTable"
@@ -99,8 +103,10 @@ for s in samples:
                     continue
                 sf, reg = locus2sf[name]
                 cnt = float(f[1])
+                if cnt <= 0:
+                    continue
                 add("tetranscripts", cohort, sample, "locus", name, reg, cnt, locus_md.get(name, ""))
-                add("tetranscripts", cohort, sample, "subfamily", sf, reg, cnt)
+                subsum[("tetranscripts", sf, reg)] += cnt
 
     # ---- SQuIRE locus level ----
     sq_te = f"{outdir}/squire/{cohort}/{sample}/{sample}_TEcounts.txt"
@@ -142,7 +148,10 @@ for s in samples:
                 sf = erv2sf.get(r["locus_id"], r["subfamily"])
                 if sf:
                     reg = "internal" if sf.endswith("-int") else "ltr"
-                    add("ervmap", cohort, sample, "subfamily", sf, reg, cnt)
+                    subsum[("ervmap", sf, reg)] += cnt
+
+    for (tool, sf, reg), v in subsum.items():
+        add(tool, cohort, sample, "subfamily", sf, reg, v)
 
 # ---- Write long table ----
 os.makedirs(f"{outdir}/aggregate", exist_ok=True)

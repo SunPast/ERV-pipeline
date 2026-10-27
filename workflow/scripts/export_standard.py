@@ -94,6 +94,7 @@ for s in samples:
 
     # ---- TEtranscripts (locus + subfamily) ----
     tt = f"{outdir}/tetranscripts/{cohort}/{sample}/{sample}.cntTable"
+    subf = {}
     if os.path.exists(tt):
         with open(tt) as f:
             next(f, None)
@@ -110,14 +111,20 @@ for s in samples:
                 sf, fam, chrom, start, end, strand, md = meta[locus]
                 w["tt_locus"].writerow([cohort, sample, locus, sf, fam,
                                         chrom, start, end, strand, cnt, md])
-                w["tt_subf"].writerow([cohort, sample, sf, fam, cnt])
+                # subfamily counts are sums over loci, not one row per locus
+                key = (sf, fam)
+                subf[key] = subf.get(key, 0.0) + cnt
+
+        for (sf, fam), v in subf.items():
+            w["tt_subf"].writerow([cohort, sample, sf, fam, v])
 
     # ---- Telescope ----
     tel = f"{outdir}/telescope/{cohort}/{sample}/{sample}.report.tsv"
     if os.path.exists(tel):
         with open(tel) as f:
-            next(f, None)
             for line in f:
+                if line.startswith("#") or line.startswith("transcript\t"):
+                    continue
                 p = line.rstrip("\n").split("\t")
                 if len(p) < 3:
                     continue
