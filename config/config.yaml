@@ -1,0 +1,116 @@
+# =============================================================================
+# ERV-pipeline main configuration
+# Every path below exists on this host (verified). Only this block should need
+# editing when moving to another machine.
+# =============================================================================
+
+genome: hg38
+annotation_release: GENCODE_v34
+
+paths:
+  # ---- reference ----
+  genome_fa:      /data/home/dingjia/pipeline/GRCh38.primary_assembly.genome.fa
+  gene_gtf:       /data/home/dingjia/pipeline/gencode.v34.annotation.gtf
+
+  # ---- single TE annotation source ----
+  # Official TEtranscripts hg38 RepeatMasker GTF (Hammell lab).
+  # It is a FULL-TE file: 4,693,511 loci / 1,180 subfamilies before filtering.
+  # We keep chr1-22, X, Y only -> 4,520,928 loci. Alt / fix / random / chrUn
+  # are dropped because their names do not match the contig names in this
+  # project's BAM headers; chrM is dropped because it carries no ERV.
+  te_gtf_official: /data/home/dingjia/ERV-data/annotation/TEtranscripts_hg38_rmsk_TE.gtf.gz
+  # ERV subset derived from it (550 subfamilies, 693,078 loci, no merging)
+  te_gtf_locus:    /data/home/dingjia/ERV-data/annotation/telescope_hg38_full550.gtf
+  te_exon_gtf:     /data/home/dingjia/ERV-data/annotation/te_locus.exon.gtf
+  subfamily_dict:  /data/home/dingjia/ERV-data/rerun_out/dictionary/subfamily_dictionary.csv
+  annotation_dir:  /data/home/dingjia/ERV-data/annotation
+
+  # ---- tool-specific resources ----
+  ervmap_bed:      /data/home/dingjia/ERV-data/annotation/ERVmap.bed        # official 3,220 proviruses
+  ervmap_catalog:  /data/home/dingjia/ERV-data/rerun_out/supplement_subfamily_locus/final/locus_catalog.csv
+  provirus_gtf:    /data3/dingjia/erv_selfhost/telescope_full/annotation/telescope_full_plus23.gtf
+  squire_ref:      /data/data2/reference/hg38_squire2                       # squire Build output (STAR index + rmsk)
+  squire_clean:    /data/data2/reference/hg38_squire2/squire_clean          # native merged annotation (reference only)
+  squire_clean_full: /data/home/dingjia/ERV-data/annotation/squire_clean_full  # built from te_gtf_official, 4,693,511 loci
+  # UCSC rmsk table, used only to look up RepeatMasker's milliDiv (divergence)
+  # for the SQuIRE bed. All 693,078 ERV loci resolve, 0 missing.
+  rmsk_table:      /data/data2/reference/hg38_squire2/hg38_rmsk.txt
+
+  # ---- runtime ----
+  telescope_bin:   /data/home/dingjia/ERV-data/envs/telescope/bin
+  apptainer_bin:   /data/home/dingjia/ERV-data/envs/apptainer/bin
+  squire_sif:      /data/data2/envs/images/singularity/squire.sif
+  tetranscripts_sif: /data/data2/envs/images/singularity/tetranscripts.2.2.3.sif
+
+  # ---- input data ----
+  bam_root:        /data/data2/IO_RNA/AS        # <bam_root>/<cohort_dir>/aligned/<sample>/*_Aligned.sortedByCoord.out.bam
+  fastq_root:      /data/data2/IO_RNA           # only needed when squire Map is enabled
+
+# Outputs go to node3 local disk, never to the master NFS mount.
+# Archive/migration step: rsync the finished products back to
+# /data/home/dingjia/ERV-data/rerun_out_new/ once the run is reviewed.
+outdir: /data3/dingjia/erv_rerun_out/pipeline_results
+
+# -----------------------------------------------------------------------------
+# Per-tool strategy (hard-coded so there is only ever one answer)
+# -----------------------------------------------------------------------------
+tools:
+  tetranscripts:
+    run: true
+    level: [locus, subfamily]     # locus from the canonical GTF; subfamily by aggregation
+    te_gtf: te_exon_gtf
+
+  telescope:
+    run: true
+    level: [locus, subfamily]     # assign writes one row per locus; subfamily by aggregation
+    te_gtf: te_gtf_locus
+    # Keep the parameters used by the 2026-10 full rerun (run_v5.sh)
+    max_iter: 200
+    theta_prior: 200000
+    ncpu: 1          # MUST be 1: with >1 the parallel loader calls pysam.fetch(),
+                     # which needs a BAM index; a collated BAM cannot be indexed.
+                     # Measured: 15.7M fragments in 940 s on one core, 2.45 GB peak.
+
+  squire:
+    run: true
+    level: [locus, subfamily]     # one Count run writes both files
+    # Measured on one BAM, four clean_folders, compared over 545 ERV subfamilies:
+    #   native (SQuIRE bundled, rmsk 2025-04)    total 1,961  positives 221/65/33  MSTA 622.22
+    #   ERV only (550 subfamilies)               total 1,305  positives 220/58/28  MSTA  57.00
+    #   union (our ERV + native non-ERV)         total 1,961  positives 221/65/33  MSTA 622.22  r=1.00000
+    #   full TE (TEtranscripts GTF)              total 2,011  positives 221/65/34  MSTA 623.08  r=0.99750
+    # Rule: the annotation MUST contain all TE classes; the ERV part may use our
+    #       canonical coordinates. That is exactly squire_clean_full.
+    # `squire Map` is skipped by default: Count accepts a coordinate-sorted STAR
+    # BAM directly (verified, exit 0, both outputs written). Map costs 32 GB and
+    # ~47 min per sample and is the largest single cost in the project.
+    note: custom_annotation_fullTE
+    clean_folder: squire_clean_full
+    map: false
+
+  ervmap:
+    run: false                    # do not rerun: the BED is the method itself
+    level: [locus, subfamily]     # locus = 3,220 proviruses; subfamily = mapped (145)
+    provirus_gtf: provirus_gtf
+
+# -----------------------------------------------------------------------------
+# Normalisation and filtering (must match the live database)
+# -----------------------------------------------------------------------------
+filter:
+  min_count: 2                    # platform-wide noise floor
+  min_norm_count: 0
+
+normalization:
+  erv: deseq2_poscounts           # reuse existing size factors
+  tpm_decimals: 4
+
+# -----------------------------------------------------------------------------
+# Resources (measured on this host unless marked TODO)
+# -----------------------------------------------------------------------------
+resources:
+  telescope_mem_mb: 4000         # measured 2.45 GB peak (15.7M fragments)
+  tetranscripts_mem_mb: 3000     # measured 2.61 GB peak, 1:24:14 per sample
+  squire_mem_mb: 4096            # measured 3.2 GB peak (Count on STAR BAM)
+  max_concurrent_telescope: 160
+  max_concurrent_squire: 130
+  max_concurrent_tetranscripts: 150

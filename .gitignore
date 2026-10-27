@@ -1,0 +1,13 @@
+# Python / Snakemake
+.venv/
+.snakemake/
+__pycache__/
+*.pyc
+
+# Run products and scratch (kept on node-local disk, never in git)
+results/
+tests/
+.work/
+
+# Machine-specific sample manifest (use config/samples.example.tsv as template)
+config/samples.tsv

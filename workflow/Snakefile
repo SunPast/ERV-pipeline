@@ -1,0 +1,38 @@
+# =============================================================================
+# ERV-pipeline - ERV/TE quantification with four tools
+#
+# Design rules (see README):
+#   1. One reference universe: hg38 + GENCODE v34 + one rmsk file
+#      (the official TEtranscripts GTF).
+#   2. Input form is tool-specific: each tool gets what it can actually read;
+#      we do not force a single file onto all of them.
+#   3. Comparison is layered: subfamily level is comparable; locus level is
+#      mapped, never numerically re-allocated.
+#
+# Usage:
+#   snakemake -n -p                              # dry-run
+#   snakemake -p --cores 32 all
+#   snakemake -p --cores 32 --config samples=config/samples.tsv all
+# =============================================================================
+
+configfile: "config/config.yaml"
+
+SAMPLES = config.get("samples", "config/samples.example.tsv")
+OUTDIR  = config["outdir"]
+
+include: "rules/common.smk"
+include: "rules/annotation.smk"
+include: "rules/tetranscripts.smk"
+include: "rules/telescope.smk"
+include: "rules/squire.smk"
+include: "rules/ervmap.smk"
+include: "rules/aggregate.smk"
+
+rule all:
+    input:
+        # long table, all tools, both levels
+        f"{OUTDIR}/aggregate/erv_expression_long.tsv.gz",
+        # subfamily evidence table (n_tools_support / ervmap_support)
+        f"{OUTDIR}/aggregate/erv_subfamily_evidence.tsv.gz",
+        # annotation audit report
+        f"{OUTDIR}/annotation/annotation_check.tsv",

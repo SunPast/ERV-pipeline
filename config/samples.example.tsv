@@ -1,0 +1,2 @@
+cohort	sample	run	bam	fq1	fq2
+EGAD00001003977	EGAD00001003977_S0001	EGAD00001003977_S0001	/data/data2/IO_RNA/AS/EGA_IMvigor210/aligned/GO29293_ngs_rna_targrna_SAM04c589eb3fb3_20160128/GO29293_ngs_rna_targrna_SAM04c589eb3fb3_20160128_Aligned.sortedByCoord.out.bam	/data/data2/IO_RNA/EGA_IMvigor210/fq/GO29293_ngs_rna_targrna_SAM04c589eb3fb3_20160128_1.fastq.gz	/data/data2/IO_RNA/EGA_IMvigor210/fq/GO29293_ngs_rna_targrna_SAM04c589eb3fb3_20160128_2.fastq.gz

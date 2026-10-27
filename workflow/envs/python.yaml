@@ -1,0 +1,9 @@
+name: erv-pipeline-py
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - pandas
+  - snakemake>=7.32
+  # Analysis scripts depend only on the standard library + pandas; quantification tools use their own envs/images
