@@ -6,6 +6,31 @@
 #   also uses cross-tool definitions and must be fixed in the backend, otherwise the numbers change on every refresh.
 # -----------------------------------------------------------------------------
 
+# -----------------------------------------------------------------------------
+# Standard tables consumed by the database loader
+#
+# The SQL side (ERV-data/rerun_out/db_load/build_import_csvs.sh) reads one CSV
+# per tool/level, not the unified long table. This rule emits those files with
+# unified names so only the paths in the loader need updating, not its logic.
+# -----------------------------------------------------------------------------
+rule export_standard:
+    input:
+        samples = SAMPLES_FILE,
+        locus_map = f"{OUTDIR}/annotation/te_locus_map.tsv",
+        ervmap_map = f"{OUTDIR}/annotation/ervmap_provirus_map.tsv",
+        long = f"{OUTDIR}/aggregate/erv_expression_long.tsv.gz",
+    output:
+        directory(f"{OUTDIR}/standard"),
+    params:
+        outdir = OUTDIR,
+        stddir = f"{OUTDIR}/standard",
+        script = "workflow/scripts/export_standard.py",
+    log:
+        f"{OUTDIR}/aggregate/export_standard.log",
+    shell:
+        "mkdir -p {params.stddir} && python {params.script} {params.outdir} "
+        "{input.samples} {input.locus_map} {input.ervmap_map} {params.stddir} 2> {log}"
+
 rule aggregate_expression:
     input:
         samples = SAMPLES_FILE,

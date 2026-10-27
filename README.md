@@ -78,15 +78,36 @@ snakemake -p --cores 8 \
   (tool, cohort, sample, level, feature, region_type, count, milli_div)
   `milli_div` is filled at **locus level only**; subfamily and ERVmap rows leave it empty.
 - `aggregate/erv_subfamily_evidence.tsv.gz`: subfamily evidence table (n_tools_support, ervmap_support)
+- `standard/`: six per-tool CSV files for the database loader (see below)
 - `annotation/annotation_check.tsv`: difference metrics across annotations
 
 Field definitions are in [docs/output_format.md](docs/output_format.md).
 
 ## Relationship to the online database
 
-This pipeline only produces files; it does not write to the database. The loading scripts remain in
-`ERV-data/rerun_out/db_load/sql/`; the two are connected via `erv_expression_long.tsv.gz`, avoiding a
-situation where "the pipeline is one thing and the database loading another".
+The SQL side does **not** read the long table. `ERV-data/rerun_out/db_load/build_import_csvs.sh`
+reads one CSV per tool/level, then maps sample names to pseudonyms, adds `norm_count`
+from its own size factors and loads via `load.sh`. This pipeline therefore also emits
+those files (`standard/`, unified names):
+
+| Standard file | Columns | Loads into |
+|---|---|---|
+| `ervmap_standard.csv` | cohort, sample, chr, start, end, ervmap_id, strand, count | `tool_ervmap` |
+| `tetranscripts_subf_standard.csv` | cohort, sample, subfamily, family, count | `tool_tetranscripts` |
+| `tetranscripts_locus_standard.csv` | cohort, sample, locus, subfamily, family, chr, start, end, strand, count | `tool_tetranscripts_locus` (new) |
+| `telescope_locus_standard.csv` | same as above | `tool_telescope` |
+| `squire_te_standard.csv` | cohort, sample, subfamily, family, count, TE_chr, TE_start, TE_stop, milliDiv, TE_strand | `tool_squire_te` |
+| `squire_subf_standard.csv` | cohort, sample, subfamily, family, count | `tool_squire_subf` |
+
+Two consequences for the SQL side:
+
+1. `build_import_csvs.sh` must point at the new file names (`standard/` paths);
+   the conversion logic itself is unchanged.
+2. The locus-level TEtranscripts output needs a new table `tool_tetranscripts_locus`
+   with the same columns as `tool_telescope`.
+
+The loader keeps only families `ERV1 / ERVK / ERVL / ERVL-MaLR`, so the 3,387 loci
+annotated as `ERVL?` or `ERV1?` (0.49%) are dropped at load time by design.
 
 ## Validation status (measured on this machine)
 

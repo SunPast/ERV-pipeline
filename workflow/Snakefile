@@ -34,5 +34,7 @@ rule all:
         f"{OUTDIR}/aggregate/erv_expression_long.tsv.gz",
         # subfamily evidence table (n_tools_support / ervmap_support)
         f"{OUTDIR}/aggregate/erv_subfamily_evidence.tsv.gz",
+        # per-tool standard CSVs for the database loader
+        f"{OUTDIR}/standard",
         # annotation audit report
         f"{OUTDIR}/annotation/annotation_check.tsv",
