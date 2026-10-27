@@ -5,7 +5,7 @@ Structure follows [TCASIA_pipeline](https://github.com/OncoHarmony-Network/TCASI
 
 ## Three ground rules
 
-1. **One reference universe**: hg38 + GENCODE v34 + a single rmsk (the official TEtranscripts hg38 RepeatMasker GTF).
+1. **One reference universe**: hg38 + GENCODE v34 + one UCSC rmsk table. Every ERV locus, its subfamily and its milliDiv come from the same release.
 2. **Inputs are not uniform**: each tool gets the form it accepts; we do not force the same file onto all of them.
 3. **Comparison is layered**: subfamily level is comparable; locus level is only mapped, never numerically redistributed.
 
@@ -13,12 +13,17 @@ Structure follows [TCASIA_pipeline](https://github.com/OncoHarmony-Network/TCASI
 
 | Tool | Annotation source | Rerun | Granularity | Notes |
 |---|---|---|---|---|
-| **TEtranscripts** | Unified reference (rmsk fragment GTF) | **Yes** | locus + subfamily | Swap in a locus GTF to get locus level; subfamily is aggregated from locus |
-| **Telescope** | Unified reference (same GTF) | **Yes** | locus + subfamily | Old result covered only 60 internal-region models, must be completed |
-| **SQuIRE** | Native (`squire Build` auto-downloads UCSC rmsk) | No | locus + subfamily | Does not accept external annotation; median overlap with the reference is 96.8% |
+| **TEtranscripts** | `te_locus.exon.gtf` (693,078 ERV loci) | **Yes** | locus + subfamily | `TEcount` per sample; subfamily aggregated from locus |
+| **Telescope** | `te_locus.gtf` (same 693,078 loci, gene lines only) | **Yes** | locus + subfamily | Old result covered only 60 internal-region models |
+| **SQuIRE** | `annotation/squire_clean` (full TE, 4,520,928 loci) | **Yes** | locus + subfamily | Built from the same rmsk table, not from `squire Build`; one `Count` run writes both levels |
 | **ERVmap** | Official 3,220 provirus BED | No | locus (provirus) + subfamily (mapped) | The BED is the method itself; changing the annotation invalidates it |
 
-For per-tool annotation differences, measured numbers, and "why they cannot be unified", see [docs/annotation.md](docs/annotation.md).
+Why SQuIRE needs the **full** TE annotation (and not just the ERV subset) is measured in
+[docs/annotation.md](docs/annotation.md): with ERV-only input, counts of high-copy subfamilies collapse
+(e.g. MSTA 622 -> 57) because its multi-mapper bookkeeping loses its reference set.
+
+`SQuIRE Map` is **not** run: `squire Count` reads the existing coordinate-sorted STAR BAM directly.
+That removes the 32 GB/sample STAR index from the picture.
 
 ## Directory layout
 
@@ -30,17 +35,20 @@ workflow/
   Snakefile
   rules/
     common.smk         shared variables and functions
-    annotation.smk     unified annotation build + validation of the three annotations
+    annotation.smk     annotation build from the rmsk table + SQuIRE clean folder + audit
     tetranscripts.smk  locus-level quantification
     telescope.smk      collate + assign
-    squire.smk         Map + Count (native annotation)
+    squire.smk         Count on the STAR BAM (both levels)
     ervmap.smk         result import + provirus composition mapping
     aggregate.smk      aggregate into long table + evidence table
   scripts/             pure Python, runnable standalone
 docs/
-  annotation.md        annotation sources and differences (most important)
+  annotation.md        annotation sources, decisions and measurements (most important)
+  literature.md        what other pipelines do about annotation
   output_format.md     output table structure
   parameters.md        parameter reference
+  troubleshooting.md   empirically established pitfalls
+  work_order.md        full-rerun work order (node/storage policy, phases, acceptance)
 ```
 
 ## Quick start
@@ -49,46 +57,59 @@ docs/
 cd ~/ERV-pipeline
 cp config/samples.example.tsv config/samples.tsv    # fill in with real samples
 snakemake -n -p                                     # dry-run
-snakemake -p --cores 32 all
+snakemake -p --cores 160 all
 ```
 
-Run only the annotation layer and aggregation (no quantification):
+`outdir` in `config/config.yaml` points at node-local disk; products are not written to the
+master NFS mount. See `docs/work_order.md` for the storage/migration policy.
+
+Run only the annotation layer:
 
 ```bash
 snakemake -p --cores 8 \
-  results/annotation/te_locus.gtf \
-  results/annotation/annotation_check.tsv \
-  results/annotation/ervmap_provirus_map.tsv
+  annotation/te_locus.gtf \
+  annotation/annotation_check.tsv \
+  annotation/ervmap_provirus_map.tsv
 ```
 
 ## Output
 
-- `results/aggregate/erv_expression_long.tsv.gz`: unified long table across the four tools (tool, cohort, sample, level, feature, region_type, count)
-- `results/aggregate/erv_subfamily_evidence.tsv.gz`: subfamily evidence table (n_tools_support, ervmap_support)
-- `results/annotation/annotation_check.tsv`: difference metrics across the three annotations
+- `aggregate/erv_expression_long.tsv.gz`: unified long table
+  (tool, cohort, sample, level, feature, region_type, count, milli_div)
+  `milli_div` is filled at **locus level only**; subfamily and ERVmap rows leave it empty.
+- `aggregate/erv_subfamily_evidence.tsv.gz`: subfamily evidence table (n_tools_support, ervmap_support)
+- `annotation/annotation_check.tsv`: difference metrics across annotations
 
 Field definitions are in [docs/output_format.md](docs/output_format.md).
 
 ## Relationship to the online database
 
-This pipeline only produces files; it does not write to the database. The loading scripts remain in `ERV-data/rerun_out/db_load/sql/`;
-the two are connected via `erv_expression_long.tsv.gz`, avoiding a situation where "the pipeline is one thing and the database loading another".
+This pipeline only produces files; it does not write to the database. The loading scripts remain in
+`ERV-data/rerun_out/db_load/sql/`; the two are connected via `erv_expression_long.tsv.gz`, avoiding a
+situation where "the pipeline is one thing and the database loading another".
 
 ## Validation status (measured on this machine)
 
 | Item | Result |
 |---|---|
-| Annotation layer build (720,871 loci) | 12.6 s, 550 subfamilies |
-| Validation of the three annotations | reference 720,871 / SQuIRE 702,850; per-subfamily overlap median **96.8%**, 399 subfamilies ≥95% |
-| ERVmap composition mapping | 3,220 loci: 2,821 hit a provirus, 399 fell back to rmsk; 2,646 have a 5'LTR, 2,066 have a 3'LTR |
-| Telescope single sample (720k loci, single thread) | **15 min 52 s**, peak memory **2.57 GB**, 15.7M fragments |
-| Telescope output | 5,881 loci with records (5,194 with counts); read assignment rate is on the same order as the old 60-model run |
-| Snakemake full-pipeline dry-run | Passed; annotation + aggregation actual run 19 s |
-| TEcount locus level (same sample) | **87 minutes**, peak **2.59 GB**; 720,871 output rows, 3,381 loci with counts, total TE counts 20,519, covering 390 subfamilies |
+| ERV annotation (chr1-22/X/Y, one rmsk fragment per locus) | **693,078 loci**, 550 subfamilies |
+| Full-TE annotation (SQuIRE reference) | **4,520,928 loci**, 1,180 subfamilies |
+| Our ERV loci vs SQuIRE native ERV loci | 693,078 vs 693,078, **0 differences** (row-wise) |
+| Annotation build time | 12 s |
+| ERVmap composition mapping | 3,220 loci: 2,821 hit a provirus, 399 fell back to rmsk |
+| Telescope, one sample, 15.7M fragments | **16 min 42 s**, peak **2.45 GB**, assignment rate 96.7% |
+| Telescope output | 5,881 loci with records (5,194 with counts) |
+| SQuIRE Count on a STAR BAM, 1M read pairs | **1 min 36 s**, peak **3.2 GB**, both output levels written |
+| TEcount, one sample | **1 h 24 min**, peak **2.61 GB** |
 
 ## Key constraints (empirically established)
 
 1. **Telescope must use `--ncpu 1`**: the parallel loader needs a BAM index, and collated BAMs cannot be indexed.
-2. **Telescope's GTF must contain only gene lines**: it does not filter by feature type, and duplicated gene/transcript/exon entries change the result (measured: gene-only 5,881 loci vs gene+transcript 4,045).
-3. **TEcount requires `family_id`/`class_id`**: otherwise it reports "TE GTF format error".
-4. **SQuIRE has no `MakeBed`**: 0.9.9.92 can only use `Build` to auto-download rmsk and does not accept external annotation.
+2. **Telescope's GTF must contain only gene lines**: it does not filter by feature type, and duplicated
+   gene/transcript/exon entries change the result.
+3. **TEcount requires `family_id`/`class_id`** in the TE GTF, otherwise it reports "TE GTF format error".
+4. **SQuIRE Count accepts an external annotation** through `--clean_folder` (one `*.bed` + one `*_copies.txt`),
+   but that folder must contain **no `*.log`** file: `getlibsize()` parses the first `*.log` it finds and
+   crashes if the expected STAR lines are missing.
+5. **Only primary chromosomes are kept** (chr1-22, X, Y). alt/fix/random contigs are named differently from
+   the contigs in the BAM headers, so those annotation rows can never receive a read; chrM carries no ERV.
