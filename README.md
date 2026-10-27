@@ -94,8 +94,8 @@ those files (`standard/`, unified names):
 |---|---|---|
 | `ervmap_standard.csv` | cohort, sample, chr, start, end, ervmap_id, strand, count | `tool_ervmap` |
 | `tetranscripts_subf_standard.csv` | cohort, sample, subfamily, family, count | `tool_tetranscripts` |
-| `tetranscripts_locus_standard.csv` | cohort, sample, locus, subfamily, family, chr, start, end, strand, count | `tool_tetranscripts_locus` (new) |
-| `telescope_locus_standard.csv` | same as above | `tool_telescope` |
+| `tetranscripts_locus_standard.csv` | cohort, sample, locus, subfamily, family, chr, start, end, strand, count, milli_div | `tool_tetranscripts_locus` (new) |
+| `telescope_locus_standard.csv` | same as above (with milli_div) | `tool_telescope` |
 | `squire_te_standard.csv` | cohort, sample, subfamily, family, count, TE_chr, TE_start, TE_stop, milliDiv, TE_strand | `tool_squire_te` |
 | `squire_subf_standard.csv` | cohort, sample, subfamily, family, count | `tool_squire_subf` |
 

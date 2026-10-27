@@ -43,7 +43,8 @@ meta = {}            # locus_id -> (subfamily, family, chr, start, end, strand)
 erv_subfamilies = set()
 for r in csv.DictReader(open(locus_map), delimiter="\t"):
     meta[r["locus_id"]] = (
-        r["subfamily"], r["family"], r["chr"], r["start"], r["end"], r["strand"]
+        r["subfamily"], r["family"], r["chr"], r["start"], r["end"], r["strand"],
+        r.get("milli_div", ""),
     )
     erv_subfamilies.add(r["subfamily"])
 
@@ -73,8 +74,8 @@ w = {k: csv.writer(fh[k]) for k in fh}
 
 w["ervmap"].writerow(["cohort", "sample", "chr", "start", "end", "ervmap_id", "strand", "count"])
 w["tt_subf"].writerow(["cohort", "sample", "subfamily", "family", "count"])
-w["tt_locus"].writerow(["cohort", "sample", "locus", "subfamily", "family", "chr", "start", "end", "strand", "count"])
-w["tel_locus"].writerow(["cohort", "sample", "locus", "subfamily", "family", "chr", "start", "end", "strand", "count"])
+w["tt_locus"].writerow(["cohort", "sample", "locus", "subfamily", "family", "chr", "start", "end", "strand", "count", "milli_div"])
+w["tel_locus"].writerow(["cohort", "sample", "locus", "subfamily", "family", "chr", "start", "end", "strand", "count", "milli_div"])
 w["sq_te"].writerow(["cohort", "sample", "subfamily", "family", "count", "TE_chr", "TE_start", "TE_stop", "milliDiv", "TE_strand"])
 w["sq_subf"].writerow(["cohort", "sample", "subfamily", "family", "count"])
 
@@ -106,9 +107,9 @@ for s in samples:
                 cnt = float(p[1])
                 if cnt <= 0:
                     continue
-                sf, fam, chrom, start, end, strand = meta[locus]
+                sf, fam, chrom, start, end, strand, md = meta[locus]
                 w["tt_locus"].writerow([cohort, sample, locus, sf, fam,
-                                        chrom, start, end, strand, cnt])
+                                        chrom, start, end, strand, cnt, md])
                 w["tt_subf"].writerow([cohort, sample, sf, fam, cnt])
 
     # ---- Telescope ----
@@ -126,9 +127,9 @@ for s in samples:
                 cnt = float(p[2])
                 if cnt <= 0:
                     continue
-                sf, fam, chrom, start, end, strand = meta[locus]
+                sf, fam, chrom, start, end, strand, md = meta[locus]
                 w["tel_locus"].writerow([cohort, sample, locus, sf, fam,
-                                         chrom, start, end, strand, cnt])
+                                         chrom, start, end, strand, cnt, md])
 
     # ---- SQuIRE locus ----
     sq = f"{outdir}/squire/{cohort}/{sample}/{sample}_TEcounts.txt"
