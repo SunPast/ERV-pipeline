@@ -125,3 +125,21 @@ Memory is not a constraint after removing `squire Map` (peak per process: 3.2 GB
 2. Decide whether locus-level ERVmap import runs for all cohorts (currently driven by
    `results/ervmap_raw/<cohort>/<sample>ERVresults.txt`; missing files are skipped).
 3. Write the normalisation note (genes only, chrM excluded) into the loader SQL before Phase 6.
+
+## 11. Cleanup after the rerun (agreed 2026-10-27)
+
+Delete only after the full rerun is loaded and verified. Move to
+`/data3/dingjia/_trash_20261027` first, delete after review.
+
+| Path | Size | Reason |
+|---|---|---|
+| /data3/dingjia/erv_selfhost/telescope_full/out | 19 G | old 60-model Telescope results |
+| /data/home/dingjia/ERV-data/rerun/smoke | 3.1 G | test cohorts |
+| /data3/dingjia/squire_tmp | 152 K | scratch |
+| /data/home/dingjia/ERV-data/rerun_out/load_prev | 14 G | previous load backup |
+| /data/home/dingjia/ERV-data/rerun_out/raw | 262 G | old per-sample raw tables (new ones are produced by this pipeline) |
+| /data/home/dingjia/ERV-data/rerun_out/standard | 15 G | old standard tables (superseded by `standard/` here) |
+| /data/home/dingjia/ERV_fake | 2.1 G | dummy data |
+
+**Keep**: `/data/home/dingjia/ERV_shiny_ver` (old frontend, explicitly kept),
+`~/ERV-sql`, `ERV-pipeline` (git), and everything under `pipeline_results/`.
