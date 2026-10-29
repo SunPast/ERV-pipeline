@@ -26,6 +26,7 @@ include: "rules/tetranscripts.smk"
 include: "rules/telescope.smk"
 include: "rules/squire.smk"
 include: "rules/ervmap.smk"
+include: "rules/gene_counts.smk"
 include: "rules/aggregate.smk"
 
 rule all:
@@ -38,6 +39,8 @@ rule all:
         f"{OUTDIR}/standard",
         # annotation audit report
         f"{OUTDIR}/annotation/annotation_check.tsv",
+        # gene-level expression: standard table for the loader + per-cohort matrices
+        f"{OUTDIR}/gene_expression/gene_expression_standard.csv.gz",
         # every per-sample output, listed explicitly: relying only on the
         # aggregate's inputs made `all` silently do nothing when the aggregate
         # products were already present but the per-sample files were not

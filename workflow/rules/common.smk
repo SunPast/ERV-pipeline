@@ -105,6 +105,14 @@ def tmp_hdd_gb(wildcards):
 def tmp_hdd2_gb(wildcards):
     return tmp_gb(wildcards).get("hdd2_gb", 0)
 
+def gene_count_outputs():
+    """Per-sample featureCounts outputs, used as the merge rule's input."""
+    if not config["tools"].get("gene_counts", {}).get("run"):
+        return []
+    return [f"{OUTDIR}/gene_counts/{s['cohort']}/{s['sample']}/"
+            f"{s['sample']}_featureCounts.txt" for s in SAMPLES]
+
+
 def all_tool_outputs():
     """Per-sample outputs of the three rerun tools, used to wire the aggregate step.
 

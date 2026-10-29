@@ -40,6 +40,7 @@ paths:
 
   # ---- runtime ----
   telescope_bin:   /data/home/dingjia/ERV-data/envs/telescope/bin
+  featurecounts_bin: /data/data2/envs/conda_envs/ega/bin
   apptainer_bin:   /data/home/dingjia/ERV-data/envs/apptainer/bin
   # Sandbox directories, NOT .sif files. squashfuse is missing on this host, so
   # every `apptainer exec <sif>` unpacks the whole image into $TMPDIR first
@@ -125,6 +126,13 @@ tools:
     note: custom_annotation_fullTE
     clean_folder: squire_clean_full
     map: false
+
+  gene_counts:
+    run: true
+    threads: 4        # featureCounts -T; memory stays under 1 GB per job
+    # Same parameters as the TCASIA pipeline (workflows/01_alignment):
+    #   -p (fragments) -t exon -g gene_id, -s 0 (unstranded)
+    # Kept identical so new samples are comparable with the existing matrices.
 
   ervmap:
     run: false                    # do not rerun: the BED is the method itself
