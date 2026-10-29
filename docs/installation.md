@@ -6,7 +6,7 @@
 |---|---|---|
 | Linux | RHEL 9 (x86_64) | needs `/dev/shm` larger than the largest per-sample temp file |
 | Python | 3.14 (virtualenv in `.venv/`) | `snakemake >= 8`, `pandas` |
-| Snakemake | 9.x | `--keep-going`, resource counters |
+| Snakemake | 9.27.1 | `--keep-going`, resource counters |
 | Apptainer | 1.x | only for SQuIRE and TEtranscripts images |
 | samtools | 1.18 | collate for Telescope, BAM inspection |
 | subread / featureCounts | 2.0.x | gene-level expression stage |
