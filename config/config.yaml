@@ -41,19 +41,53 @@ paths:
   # ---- runtime ----
   telescope_bin:   /data/home/dingjia/ERV-data/envs/telescope/bin
   apptainer_bin:   /data/home/dingjia/ERV-data/envs/apptainer/bin
-  squire_sif:      /data/data2/envs/images/singularity/squire.sif
-  tetranscripts_sif: /data/data2/envs/images/singularity/tetranscripts.2.2.3.sif
+  # Sandbox directories, NOT .sif files. squashfuse is missing on this host, so
+  # every `apptainer exec <sif>` unpacks the whole image into $TMPDIR first
+  # (~2 GB per process). With 160 concurrent jobs that filled the 70 GB root
+  # filesystem within minutes and killed the run. A pre-built sandbox is used
+  # in place, with no per-job extraction. Rebuild once with:
+  #   apptainer build --sandbox <dir> <sif>
+  squire_sif:      /data3/dingjia/sandbox/squire
+  tetranscripts_sif: /data3/dingjia/sandbox/tetranscripts
 
   # ---- input data ----
   bam_root:        /data/data2/IO_RNA/AS
   # Some historical BAMs live outside bam_root; containers must mount them too.
-  extra_bind:      ["/data/data1/lx/ERV"]          # historical BAM root outside bam_root
+  # BAMs live under two roots (/data/data2/IO_RNA/AS and /data/data1/lx/ERV),
+  # so containers bind /data read-only. Copying them into one folder would
+  # duplicate ~8 TB; a symlink farm would not help because the symlink target
+  # still has to be mounted.
+  bind_paths:      ["/data"]
   fastq_root:      /data/data2/IO_RNA           # only needed when squire Map is enabled
 
 # Outputs go to node3 local disk, never to the master NFS mount.
 # Archive/migration step: rsync the finished products back to
 # /data/home/dingjia/ERV-data/rerun_out_new/ once the run is reviewed.
 outdir: /data3/dingjia/erv_rerun_out/pipeline_results
+
+# -----------------------------------------------------------------------------
+# Temporary files (2026-10-28)
+#
+# All three tools write GB-scale temporary files per sample:
+#   telescope  collated.bam            ~4.5 GB
+#   squire     proper/nonproper bam    ~3.5 GB  (via --tempfolder)
+#   TEcount    sorted temp bam         ~3.5 GB  (written to the process cwd)
+# Writing them to /data3 (a single HDD) at 160-way concurrency turned the disk
+# into 46 MB/s at queue depth 26, and the first full run produced 60/17,000
+# steps in 6 hours. They now go to RAM (/dev/shm) and to the second, otherwise
+# idle HDD (/data4). Samples are assigned to a root by a hash of the sample
+# name, so the split is stable across resumptions.
+# -----------------------------------------------------------------------------
+tmp_roots:
+  - path: /dev/shm/ervtmp          # tmpfs, 504 G total
+    share: 0.80
+    resource: shm_gb
+  - path: /data4/dingjia/ervtmp    # local HDD #2
+    share: 0.10
+    resource: hdd_gb
+  - path: /data3/dingjia/ervtmp    # local HDD #1
+    share: 0.10
+    resource: hdd2_gb
 
 # -----------------------------------------------------------------------------
 # Per-tool strategy (hard-coded so there is only ever one answer)
@@ -115,6 +149,10 @@ resources:
   telescope_mem_mb: 4000         # measured 2.45 GB peak (15.7M fragments)
   tetranscripts_mem_mb: 3000     # measured 2.61 GB peak, 1:24:14 per sample
   squire_mem_mb: 4096            # measured 3.2 GB peak (Count on STAR BAM)
+  # Temporary-space budget per job, charged against tmp_roots[].resource.
+  # 6 GB covers the largest observed temp (collate 4.5 GB plus the report).
+  # Caps passed at launch: --resources shm_gb=450 hdd_gb=300
+  tmp_gb_per_job: 6
   max_concurrent_telescope: 160
   max_concurrent_squire: 130
-  max_concurrent_tetranscripts: 150
+  max_concurrent_tetranscripts: 160

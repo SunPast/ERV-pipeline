@@ -41,7 +41,10 @@ with open(out_tsv, "w") as ft, open(out_log, "w") as fl:
 
         method, cand = "manifest", []
         bam = bams.get(sample, "")
-        if bam and os.path.exists(bam):
+        # A manifest entry that exists but is 0 bytes is a failed STAR run, not a
+        # usable BAM (PHS002176 has 4 of them under ERV.map/results). Fall back
+        # to the filesystem search so the real alignment is picked up.
+        if bam and os.path.exists(bam) and os.path.getsize(bam) > 0:
             n_manifest += 1
         else:
             cand = sorted(glob.glob(

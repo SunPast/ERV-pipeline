@@ -37,22 +37,28 @@ rule squire_count:
     output:
         te   = f"{OUTDIR}/squire/{{cohort}}/{{sample}}/{{sample}}_TEcounts.txt",
         subf = f"{OUTDIR}/squire/{{cohort}}/{{sample}}/{{sample}}_subFcounts.txt",
-    threads: 6
+    threads: 2
     resources:
         mem_mb = config["resources"]["squire_mem_mb"],
+        # proper/nonproper BAMs (~3.5 GB) go to --tempfolder, not to /data3.
+        shm_gb = tmp_shm_gb,
+        hdd_gb = tmp_hdd_gb,
+        hdd2_gb = tmp_hdd2_gb,
     params:
         outdir = lambda wc: sdir("squire", wc.cohort, wc.sample),
+        tmp = tmp_dir,
         ref = P["squire_ref"],
         # Built by rule squire_clean_folder from the full-TE map, on local disk.
         clean = f"{OUTDIR}/annotation/squire_clean",
         apptainer = apptainer(),
         sif = P["squire_sif"],
         bam_root = P["bam_root"],
-        extra_bind = " ".join(f"--bind {d}:{d}:ro" for d in P.get("extra_bind", [])),
+        extra_bind = " ".join(f"--bind {d}:{d}:ro" for d in P.get("bind_paths", [])),
         ann_dir = f"{OUTDIR}/annotation",
     shell:
         """
-        mkdir -p {params.outdir} && \
+        tmp={params.tmp}.$$ && mkdir -p {params.outdir} "$tmp" && \
+        export TMPDIR="$tmp" && \
         ln -sfn {input.bam} {params.outdir}/{wildcards.sample}.bam && \
         {params.apptainer} exec \
             --bind {params.bam_root}:{params.bam_root}:ro \
@@ -60,12 +66,15 @@ rule squire_count:
             --bind {params.ref}:{params.ref}:ro \
             --bind {params.ann_dir}:{params.ann_dir}:ro \
             --bind {params.outdir}:{params.outdir} \
+            --bind "$tmp":"$tmp" \
             {params.sif} squire Count \
             --map_folder {params.outdir} \
             --clean_folder {params.clean} \
             --count_folder {params.outdir} \
+            --tempfolder "$tmp" \
             --read_length 36 --fetch_folder {params.ref} \
-            --pthreads {threads} --name {wildcards.sample}
+            --pthreads {threads} --name {wildcards.sample} && \
+        rm -rf "$tmp"
         """
 
 

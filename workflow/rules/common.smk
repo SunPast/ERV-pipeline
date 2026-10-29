@@ -2,6 +2,8 @@
 # Shared variables and functions
 # -----------------------------------------------------------------------------
 import os
+import math
+import zlib
 import pandas as pd
 
 OUTDIR = config["outdir"]
@@ -31,6 +33,77 @@ def run_env():
 
 def apptainer():
     return f"{P['apptainer_bin']}/apptainer"
+
+# -----------------------------------------------------------------------------
+# Temporary-file placement
+#
+# Each of the three tools writes GB-scale scratch files. Putting all of them on
+# one HDD at high concurrency collapses that disk to ~46 MB/s (measured
+# 2026-10-28). config["tmp_roots"] lists candidate roots with a share and the
+# Snakemake resource name that limits how many jobs may use that root at once.
+# The assignment is a hash of the sample name, so it does not change between
+# runs and a resumed run puts a sample in the same place.
+# -----------------------------------------------------------------------------
+TMP_ROOTS = config.get("tmp_roots", [])
+TMP_GB = config.get("resources", {}).get("tmp_gb_per_job", 6)
+
+
+def tmp_root_index(sample):
+    if not TMP_ROOTS:
+        return None
+    weights = [max(1, int(round(r["share"] * 1000))) for r in TMP_ROOTS]
+    h = zlib.crc32(sample.encode()) % sum(weights)
+    acc = 0
+    for i, w in enumerate(weights):
+        acc += w
+        if h < acc:
+            return i
+    return len(TMP_ROOTS) - 1
+
+
+def tmp_dir(wildcards):
+    idx = tmp_root_index(wildcards.sample)
+    if idx is None:
+        return f"{OUTDIR}/_tmp/{wildcards.sample}"
+    return f"{TMP_ROOTS[idx]['path']}/{wildcards.sample}"
+
+
+def tmp_gb(wildcards):
+    """Charge this job's temp budget to its root's resource counter only.
+
+    A flat budget is wrong: measured usage ranges from 3.5 GB (small BAM) to
+    16.6 GB (5 GB BAM, telescope collate + TEcount sort alive together), so a
+    flat 6 GB per job over-subscribed /dev/shm and the tmpfs filled up, which
+    made intermediate bed files disappear mid-run. Temp size tracks the BAM
+    size, so it is estimated from it: ~3.5x the input BAM, floor 6 GB.
+    """
+    idx = tmp_root_index(wildcards.sample)
+    if idx is None:
+        return {}
+    return {TMP_ROOTS[idx]["resource"]: sample_tmp_gb(wildcards.sample)}
+
+
+_BAM_GB = {}
+
+
+def sample_tmp_gb(sample):
+    if sample not in _BAM_GB:
+        bam = next((s["bam"] for s in SAMPLES if s["sample"] == sample), None)
+        gb = os.path.getsize(bam) / 2**30 if bam and os.path.exists(bam) else 2.0
+        _BAM_GB[sample] = max(6, int(math.ceil(3.5 * gb)))
+    return _BAM_GB[sample]
+
+
+def tmp_shm_gb(wildcards):
+    return tmp_gb(wildcards).get("shm_gb", 0)
+
+
+def tmp_hdd_gb(wildcards):
+    return tmp_gb(wildcards).get("hdd_gb", 0)
+
+
+def tmp_hdd2_gb(wildcards):
+    return tmp_gb(wildcards).get("hdd2_gb", 0)
 
 def all_tool_outputs():
     """Per-sample outputs of the three rerun tools, used to wire the aggregate step.
