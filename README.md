@@ -40,15 +40,21 @@ workflow/
     telescope.smk      collate + assign
     squire.smk         Count on the STAR BAM (both levels)
     ervmap.smk         result import + provirus composition mapping
+    gene_counts.smk    featureCounts per sample + merge into matrices
     aggregate.smk      aggregate into long table + evidence table
   scripts/             pure Python, runnable standalone
 docs/
+  installation.md      dependencies, reference data, container sandboxes
+  usage.md             sample sheet, run/resume, scratch layout, outputs
   annotation.md        annotation sources, decisions and measurements (most important)
   literature.md        what other pipelines do about annotation
+  gene_expression.md   gene-level counts and why no expression filter is applied
   output_format.md     output table structure
   parameters.md        parameter reference
   troubleshooting.md   empirically established pitfalls
   work_order.md        full-rerun work order (node/storage policy, phases, acceptance)
+CHECKLIST.md           pre-run and post-run checks
+CITATION.md            papers to cite for each tool
 ```
 
 ## Quick start
