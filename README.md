@@ -108,6 +108,15 @@ those files (`standard/`, unified names):
 | `telescope_locus_standard.csv` | same as above (with milli_div) | `tool_telescope` |
 | `squire_te_standard.csv` | cohort, sample, subfamily, family, count, TE_chr, TE_start, TE_stop, milliDiv, TE_strand | `tool_squire_te` |
 | `squire_subf_standard.csv` | cohort, sample, subfamily, family, count | `tool_squire_subf` |
+| `gene_expression/gene_expression_standard.csv.gz` | cohort, sample, gene_id, gene_symbol, length, count | `gene_expression` (new) |
+| `gene_expression/sample_gene_factor.tsv` | cohort, sample, total_gene_count, n_genes_detected, gene_size_factor, method | `sample_gene_factor` (new) |
+
+Gene expression is loaded as raw counts only, with zero-count rows omitted
+(sparse). `length` is the merged exon length, and `norm_count` on load is
+`count / gene_size_factor`. The gene size factor is estimated independently of
+the ERV one (DESeq2 median-of-ratios across all samples; falls back to library
+size and says so in `method`), because reusing the ERV factor would import the
+ERV composition of each library into the gene layer.
 
 Two consequences for the SQL side:
 

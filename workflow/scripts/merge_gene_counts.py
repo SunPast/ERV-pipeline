@@ -17,9 +17,15 @@ Outputs, both derived from the per-sample `_featureCounts.txt` files:
       only rows with count > 0, matching the convention of the ERV standard
       tables (zero-count features are not shipped).
 
+`length` is the merged exon length of the gene (union of all its exons across
+transcripts), not the genomic span. TPM needs the exon length: a span-based
+length inflates genes with large introns (TTN, RBFOX1) and makes their TPM
+systematically too low.
+
 featureCounts writes one header line starting with '#' plus a column header;
 the last column is this sample's count because each run has exactly one BAM.
 """
+import collections
 import csv
 import gzip
 import os
@@ -30,17 +36,42 @@ outdir, samples_tsv, gtf_path = sys.argv[1:4]
 
 # ---- gene metadata from the annotation ----
 gene_symbol = {}
-gene_len = {}
+gene_span = {}
+exons = collections.defaultdict(list)
 pat = re.compile(r'gene_id "([^"]+)".*gene_name "([^"]+)"')
+gid_pat = re.compile(r'gene_id "([^"]+)"')
 for line in open(gtf_path):
-    if "\tgene\t" not in line:
-        continue
-    m = pat.search(line)
-    if not m:
-        continue
     f = line.rstrip("\n").split("\t")
-    gene_symbol[m.group(1)] = m.group(2)
-    gene_len[m.group(1)] = int(f[4]) - int(f[3]) + 1
+    if len(f) < 9:
+        continue
+    if f[2] == "gene":
+        m = pat.search(f[8])
+        if m:
+            gene_symbol[m.group(1)] = m.group(2)
+            gene_span[m.group(1)] = int(f[4]) - int(f[3]) + 1
+    elif f[2] == "exon":
+        m = gid_pat.search(f[8])
+        if m:
+            exons[m.group(1)].append((int(f[3]) - 1, int(f[4])))
+
+
+def merged_exon_length(gid):
+    iv = exons.get(gid)
+    if not iv:
+        return gene_span.get(gid, "")
+    iv.sort()
+    total = 0
+    cs, ce = iv[0]
+    for s, e in iv[1:]:
+        if s <= ce:
+            ce = max(ce, e)
+        else:
+            total += ce - cs
+            cs, ce = s, e
+    return total + ce - cs
+
+
+gene_len = {gid: merged_exon_length(gid) for gid in gene_span}
 
 samples = list(csv.DictReader(open(samples_tsv), delimiter="\t"))
 by_cohort = {}

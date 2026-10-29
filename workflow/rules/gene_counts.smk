@@ -48,10 +48,15 @@ rule merge_gene_counts:
     output:
         std = f"{OUTDIR}/gene_expression/gene_expression_standard.csv.gz",
         matrices = directory(f"{OUTDIR}/gene_expression/matrices"),
+        factors = f"{OUTDIR}/gene_expression/sample_gene_factor.tsv",
     params:
         outdir = OUTDIR,
         script = "workflow/scripts/merge_gene_counts.py",
+        factor_script = "workflow/scripts/compute_gene_factors.py",
     log:
         f"{OUTDIR}/gene_expression/merge.log",
     shell:
-        "python {params.script} {params.outdir} {input.samples} {input.gtf} 2> {log}"
+        """
+        python {params.script} {params.outdir} {input.samples} {input.gtf} 2>> {log}
+        python {params.factor_script} {params.outdir} {input.samples} 2>> {log}
+        """
