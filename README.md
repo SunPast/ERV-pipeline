@@ -56,6 +56,7 @@ docs/
   output_format.md     output table structure
   parameters.md        parameter reference
   troubleshooting.md   empirically established pitfalls
+  deployment.md        host-specific notes: sandboxes, scratch layout, resource caps
   work_order.md        full-rerun work order (node/storage policy, phases, acceptance)
 CHECKLIST.md           pre-run and post-run checks
 CITATION.md            papers to cite for each tool
@@ -64,14 +65,16 @@ CITATION.md            papers to cite for each tool
 ## Quick start
 
 ```bash
-cd ~/ERV-pipeline
-cp config/samples.example.tsv config/samples.tsv    # fill in with real samples
-snakemake -n -p                                     # dry-run
+cp config/config.minimal.yaml config/config.yaml   # set refdir and outdir
+cp config/samples.example.tsv config/samples.tsv   # fill in: cohort, sample, bam
+snakemake -n -p                                    # dry-run
 snakemake -p --cores 160 all
 ```
 
-`outdir` in `config/config.yaml` points at node-local disk; products are not written to the
-master NFS mount. See `docs/work_order.md` for the storage/migration policy.
+Reference files are derived from `refdir`; only paths that deviate from the
+standard layout need to be listed under `paths:`. Host-specific notes
+(container sandboxes, scratch layout, resource caps) live in
+[docs/deployment.md](docs/deployment.md) and are not needed on a standard machine.
 
 Run only the annotation layer:
 
