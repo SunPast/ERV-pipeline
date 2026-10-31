@@ -27,6 +27,11 @@ include: "rules/telescope.smk"
 include: "rules/squire.smk"
 include: "rules/ervmap.smk"
 include: "rules/gene_counts.smk"
+
+# Only when pre-computed cohort matrices are supplied through
+# paths.external_gene_dir (see docs/gene_expression.md).
+if config["paths"].get("external_gene_dir"):
+    include: "rules/gene_expression_external.smk"
 include: "rules/aggregate.smk"
 
 rule all:
@@ -41,6 +46,8 @@ rule all:
         f"{OUTDIR}/annotation/annotation_check.tsv",
         # gene-level expression: standard table for the loader + per-cohort matrices
         f"{OUTDIR}/gene_expression/gene_expression_standard.csv.gz",
+        # imported gene counts, only when external_gene_dir is configured
+        *external_gene_outputs(),
         # every per-sample output, listed explicitly: relying only on the
         # aggregate's inputs made `all` silently do nothing when the aggregate
         # products were already present but the per-sample files were not

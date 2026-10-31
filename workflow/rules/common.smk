@@ -135,6 +135,13 @@ def tmp_hdd_gb(wildcards):
 def tmp_hdd2_gb(wildcards):
     return tmp_gb(wildcards).get("hdd2_gb", 0)
 
+def external_gene_outputs():
+    """Long table of imported gene counts, only when an external dir is set."""
+    if not P.get("external_gene_dir"):
+        return []
+    return [f"{OUTDIR}/gene_expression/external_counts.tsv.gz"]
+
+
 def gene_count_outputs():
     """Per-sample featureCounts outputs, used as the merge rule's input."""
     if not config["tools"].get("gene_counts", {}).get("run"):
