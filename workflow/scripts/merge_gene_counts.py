@@ -2,7 +2,13 @@
 """Merge per-sample featureCounts outputs into the gene expression tables.
 
 Usage:
-  merge_gene_counts.py OUTDIR SAMPLES_TSV GTF
+  merge_gene_counts.py OUTDIR SAMPLES_TSV GTF [EXTERNAL_TSV]
+
+EXTERNAL_TSV is optional and holds already computed counts in the pipeline's
+long format (cohort, sample, gene_id, count, source). Samples covered there are
+not recomputed; a sample present in both the external table and a local
+featureCounts file is a hard error, because silently preferring one would make
+the database depend on which file happened to be read first.
 
 Outputs, both derived from the per-sample `_featureCounts.txt` files:
 
@@ -82,19 +88,28 @@ mat_dir = os.path.join(outdir, "gene_expression", "matrices")
 os.makedirs(mat_dir, exist_ok=True)
 os.makedirs(os.path.join(outdir, "gene_expression"), exist_ok=True)
 
-std_path = os.path.join(outdir, "gene_expression", "gene_expression_standard.csv.gz")
-std = gzip.open(std_path, "wt", newline="")
-w = csv.writer(std)
-w.writerow(["cohort", "sample", "gene_id", "gene_symbol", "length", "count"])
+external_tsv = sys.argv[4] if len(sys.argv) > 4 else None
+counts = collections.defaultdict(dict)
+origin = {}
+
+if external_tsv and os.path.exists(external_tsv):
+    with gzip.open(external_tsv, "rt") as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            key = (row["cohort"], row["sample"])
+            counts[key][row["gene_id"]] = int(float(row["count"]))
+            origin.setdefault(key, row.get("source") or "external")
 
 for cohort, smps in sorted(by_cohort.items()):
-    cols = {}
     for smp in smps:
         path = os.path.join(outdir, "gene_counts", cohort, smp,
                             f"{smp}_featureCounts.txt")
         if not os.path.exists(path):
             continue
-        counts = {}
+        if (cohort, smp) in counts:
+            sys.exit(f"error: {cohort}/{smp} has both an imported and a computed "
+                     "count table; remove one before merging")
+        d = counts[(cohort, smp)]
+        origin[(cohort, smp)] = "computed"
         with open(path) as fh:
             for line in fh:
                 if line.startswith("#"):
@@ -102,13 +117,20 @@ for cohort, smps in sorted(by_cohort.items()):
                 p = line.rstrip("\n").split("\t")
                 if p[0] == "Geneid":
                     continue
-                counts[p[0]] = int(float(p[-1]))
-        cols[smp] = counts
-        for gid, c in counts.items():
+                d[p[0]] = int(float(p[-1]))
+
+std_path = os.path.join(outdir, "gene_expression", "gene_expression_standard.csv.gz")
+with gzip.open(std_path, "wt", newline="") as std:
+    w = csv.writer(std)
+    w.writerow(["cohort", "sample", "gene_id", "gene_symbol", "length", "count"])
+    for (cohort, smp), d in sorted(counts.items()):
+        for gid, c in d.items():
             if c > 0:
                 w.writerow([cohort, smp, gid, gene_symbol.get(gid, ""),
                             gene_len.get(gid, ""), c])
 
+for cohort, smps in sorted(by_cohort.items()):
+    cols = {smp: counts[(cohort, smp)] for smp in smps if (cohort, smp) in counts}
     if not cols:
         continue
     genes = sorted(set().union(*cols.values()))
@@ -117,5 +139,7 @@ for cohort, smps in sorted(by_cohort.items()):
         for gid in genes:
             mh.write("\t".join([gid] + [str(c.get(gid, 0)) for c in cols.values()]) + "\n")
 
-std.close()
-print(f"gene expression written to {outdir}/gene_expression", file=sys.stderr)
+n_ext = sum(1 for v in origin.values() if v != "computed")
+print(f"gene expression written to {outdir}/gene_expression "
+      f"({len(counts)} samples: {len(counts) - n_ext} computed, {n_ext} imported)",
+      file=sys.stderr)

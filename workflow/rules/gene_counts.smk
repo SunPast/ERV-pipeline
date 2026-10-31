@@ -45,18 +45,21 @@ rule merge_gene_counts:
         samples = SAMPLES_FILE,
         gtf = P["gene_gtf"],
         counts = gene_count_outputs(),
+        # empty unless paths.external_gene_dir is set
+        external = external_gene_outputs(),
     output:
         std = f"{OUTDIR}/gene_expression/gene_expression_standard.csv.gz",
         matrices = directory(f"{OUTDIR}/gene_expression/matrices"),
         factors = f"{OUTDIR}/gene_expression/sample_gene_factor.tsv",
     params:
         outdir = OUTDIR,
+        external = (external_gene_outputs() or [""])[0],
         script = "workflow/scripts/merge_gene_counts.py",
         factor_script = "workflow/scripts/compute_gene_factors.py",
     log:
         f"{OUTDIR}/gene_expression/merge.log",
     shell:
         """
-        python {params.script} {params.outdir} {input.samples} {input.gtf} 2>> {log}
+        python {params.script} {params.outdir} {input.samples} {input.gtf} {params.external} 2>> {log}
         python {params.factor_script} {params.outdir} {input.samples} 2>> {log}
         """
