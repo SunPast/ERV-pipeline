@@ -1,0 +1,52 @@
+# =============================================================================
+# Minimal configuration — copy to config/config.yaml and edit only what you have
+#
+# The pipeline derives every other path from `refdir`, `outdir` and the
+# filenames below. If your files use different names, override them under
+# `paths:`; you do not need to list the ones that follow the standard layout.
+#
+#   cp config/config.minimal.yaml config/config.yaml
+#   cp config/samples.example.tsv config/samples.tsv   # then fill it in
+#   snakemake -n
+# =============================================================================
+
+genome: hg38
+annotation_release: GENCODE_v34
+samples: config/samples.tsv
+outdir: results
+
+# Directory holding the reference files. Expected layout:
+#   {refdir}/genome.fa                     genome FASTA + .fai
+#   {refdir}/gencode.v34.annotation.gtf    gene annotation
+#   {refdir}/rmsk.txt                      UCSC RepeatMasker table
+#   {refdir}/TEtranscripts_hg38_rmsk_TE.gtf.gz   full-TE GTF (public download)
+refdir: /path/to/reference
+
+paths:
+  # Anything that deviates from the layout above goes here.
+  # Example:
+  #   genome_fa: /data/ref/my_genome.fa
+  #
+  # Tool binaries are looked up on PATH unless given here.
+  # Container images: a .sif path works on any host; a sandbox directory works
+  # on hosts without squashfuse (see docs/deployment.md).
+  # squire_sif: /path/to/squire.sif
+  # tetranscripts_sif: /path/to/tetranscripts.sif
+
+tools:
+  tetranscripts: { run: true }
+  telescope:     { run: true, ncpu: 1 }
+  squire:        { run: true }
+  ervmap:        { run: false }      # the BED is the method itself; import instead
+  gene_counts:   { run: true, threads: 4 }
+
+# Scratch space. Leave empty to use {outdir}/_tmp (works everywhere, slower).
+# On a machine with several disks, listing them here lets jobs spread out:
+#   tmp_roots:
+#     - { path: /dev/shm/ervtmp, share: 0.80, resource: shm_gb }
+#     - { path: /data4/ervtmp,   share: 0.10, resource: hdd_gb }
+#     - { path: /data3/ervtmp,   share: 0.10, resource: hdd2_gb }
+tmp_roots: []
+
+resources:
+  tmp_gb_per_job: 6

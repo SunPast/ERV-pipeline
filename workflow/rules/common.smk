@@ -7,7 +7,37 @@ import zlib
 import pandas as pd
 
 OUTDIR = config["outdir"]
-P = config["paths"]
+P = dict(config["paths"])
+
+# -----------------------------------------------------------------------------
+# Path resolution
+#
+# config/config.minimal.yaml only asks for `refdir`; the reference files are
+# derived from it. Explicitly listed paths always win, so an existing full
+# config keeps working unchanged. Anything still missing is reported up front
+# instead of failing later inside a rule.
+# -----------------------------------------------------------------------------
+REFDIR = P.get("refdir") or config.get("refdir")
+
+_DERIVED = {
+    "genome_fa":       "genome.fa",
+    "gene_gtf":        "gencode.v34.annotation.gtf",
+    "rmsk_table":      "rmsk.txt",
+    "te_gtf_official": "TEtranscripts_hg38_rmsk_TE.gtf.gz",
+}
+if REFDIR:
+    for _key, _fname in _DERIVED.items():
+        P.setdefault(_key, f"{REFDIR}/{_fname}")
+P.setdefault("annotation_dir", f"{OUTDIR}/annotation")
+
+_REQUIRED = ["genome_fa", "gene_gtf", "rmsk_table", "te_gtf_official"]
+_missing = [_k for _k in _REQUIRED if not P.get(_k)]
+if _missing:
+    raise ValueError(
+        "Missing reference paths: " + ", ".join(_missing) +
+        ". Set `refdir:` in config/config.yaml (see config/config.minimal.yaml), "
+        "or list these paths explicitly under `paths:`."
+    )
 
 SAMPLES_FILE = config.get("samples", "config/samples.example.tsv")
 _samples = pd.read_csv(SAMPLES_FILE, sep="\t", dtype=str).fillna("")
