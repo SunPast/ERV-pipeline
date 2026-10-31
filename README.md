@@ -1,8 +1,7 @@
 # ERV-pipeline
 
-![Snakemake](https://img.shields.io/badge/snakemake-9.27.1-1f425f)
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Genome](https://img.shields.io/badge/genome-hg38%20%2F%20GENCODE%20v34-lightgrey)
+[![Snakemake](https://img.shields.io/badge/snakemake-9.27.1-1f425f.svg)](https://snakemake.readthedocs.io)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A unified processing pipeline for four ERV/TE quantification tools (ERVmap, Telescope, SQuIRE, TEtranscripts).
 Structure follows [TCASIA_pipeline](https://github.com/OncoHarmony-Network/TCASIA_pipeline): modular rules + environment declarations + documentation + validation report.
