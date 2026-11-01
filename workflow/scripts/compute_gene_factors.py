@@ -8,8 +8,9 @@ counts would import the ERV composition of each library into the gene layer.
 
 Method: DESeq2's median-of-ratios (Love et al. 2014), estimated across all
 samples of all cohorts, using genes with a nonzero count in every sample.
-If that set is too small (< --min-genes), the script falls back to library-size
-normalisation and records `method = library_size` so the two are never confused.
+If fewer than 100 such genes exist (the usual case for a multi-cohort atlas of
+thousands of libraries), the script falls back to library-size normalisation
+and records `method = library_size` so the two are never confused.
 
 Usage:
   compute_gene_factors.py OUTDIR SAMPLES_TSV
