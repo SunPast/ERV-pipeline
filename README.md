@@ -3,155 +3,99 @@
 [![Snakemake](https://img.shields.io/badge/snakemake-9.27.1-1f425f.svg)](https://snakemake.readthedocs.io)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A unified processing pipeline for four ERV/TE quantification tools (ERVmap, Telescope, SQuIRE, TEtranscripts).
-Structure follows [TCASIA_pipeline](https://github.com/OncoHarmony-Network/TCASIA_pipeline): modular rules + environment declarations + documentation + validation report.
+Quantify human endogenous retroviruses (ERVs) and transposable elements from
+RNA-seq alignment files with four independent tools, then put their output on a
+common annotation so the results can be compared.
 
-## Three ground rules
+| Tool | Level produced | Annotation it reads |
+|---|---|---|
+| [TEtranscripts](https://github.com/mhammell-laboratory/TEtranscripts) | locus + subfamily | ERV exon GTF (693,078 loci, 550 subfamilies) |
+| [Telescope](https://github.com/mlbendall/telescope) | locus + subfamily | same 693,078 loci, gene lines only |
+| [SQuIRE](https://github.com/wyang1989/SQuIRE) | locus + subfamily | full TE annotation (4,520,928 loci) |
+| [ERVmap](https://github.com/mtokuyama/ERVmap) | provirus + subfamily | the official 3,220-provirus BED |
 
-1. **One reference universe**: hg38 + GENCODE v34 + one UCSC rmsk table. Every ERV locus, its subfamily and its milliDiv come from the same release.
-2. **Inputs are not uniform**: each tool gets the form it accepts; we do not force the same file onto all of them.
-3. **Comparison is layered**: subfamily level is comparable; locus level is only mapped, never numerically redistributed.
+The four tools are deliberately given the annotation form each one requires. ERVmap's
+BED is the method itself, so it is imported rather than recomputed; the other three
+are quantified here from a coordinate-sorted BAM.
 
-## How the four tools are handled
+Gene-level expression is produced from the same BAMs with `featureCounts`, so ERV
+and gene counts always describe the same library.
 
-| Tool | Annotation source | Rerun | Granularity | Notes |
-|---|---|---|---|---|
-| **TEtranscripts** | `te_locus.exon.gtf` (693,078 ERV loci) | **Yes** | locus + subfamily | `TEcount` per sample; subfamily aggregated from locus |
-| **Telescope** | `te_locus.gtf` (same 693,078 loci, gene lines only) | **Yes** | locus + subfamily | Old result covered only 60 internal-region models |
-| **SQuIRE** | `annotation/squire_clean` (full TE, 4,520,928 loci) | **Yes** | locus + subfamily | Built from the same rmsk table, not from `squire Build`; one `Count` run writes both levels |
-| **ERVmap** | Official 3,220 provirus BED | No | locus (provirus) + subfamily (mapped) | The BED is the method itself; changing the annotation invalidates it |
+## Requirements
 
-Why SQuIRE needs the **full** TE annotation (and not just the ERV subset) is measured in
-[docs/annotation.md](docs/annotation.md): with ERV-only input, counts of high-copy subfamilies collapse
-(e.g. MSTA 622 -> 57) because its multi-mapper bookkeeping loses its reference set.
+- Linux with a container runtime (`apptainer` or `singularity`) for the SQuIRE and
+  TEtranscripts images
+- Snakemake ≥ 9
+- Python ≥ 3.10 with `pandas`
+- Reference files: genome FASTA (+ `.fai`), a GENCODE GTF, the UCSC RepeatMasker
+  table, and the public TEtranscripts hg38 GTF
+- Input: one coordinate-sorted BAM per sample
 
-`SQuIRE Map` is **not** run: `squire Count` reads the existing coordinate-sorted STAR BAM directly.
-That removes the 32 GB/sample STAR index from the picture.
-
-## Directory layout
-
-```
-config/
-  config.yaml          all paths/parameters/tool strategies
-  samples.example.tsv  sample sheet template (cohort, sample, run, bam, fq1, fq2)
-workflow/
-  Snakefile
-  rules/
-    common.smk         shared variables and functions
-    annotation.smk     annotation build from the rmsk table + SQuIRE clean folder + audit
-    tetranscripts.smk  locus-level quantification
-    telescope.smk      collate + assign
-    squire.smk         Count on the STAR BAM (both levels)
-    ervmap.smk         result import + provirus composition mapping
-    gene_counts.smk    featureCounts per sample + merge into matrices
-    aggregate.smk      aggregate into long table + evidence table
-  scripts/             pure Python, runnable standalone
-docs/
-  installation.md      dependencies, reference data, container sandboxes
-  usage.md             sample sheet, run/resume, scratch layout, outputs
-  annotation.md        annotation sources, decisions and measurements (most important)
-  literature.md        what other pipelines do about annotation
-  gene_expression.md   gene-level counts and why no expression filter is applied
-  output_format.md     output table structure
-  parameters.md        parameter reference
-  troubleshooting.md   empirically established pitfalls
-  deployment.md        host-specific notes: sandboxes, scratch layout, resource caps
-  work_order.md        full-rerun work order (node/storage policy, phases, acceptance)
-CHECKLIST.md           pre-run and post-run checks
-CITATION.md            papers to cite for each tool
-```
+Exact versions and the reference layout are in [docs/installation.md](docs/installation.md).
 
 ## Quick start
 
 ```bash
 cp config/config.minimal.yaml config/config.yaml   # set refdir and outdir
-cp config/samples.example.tsv config/samples.tsv   # fill in: cohort, sample, bam
-snakemake -n -p                                    # dry-run
-snakemake -p --cores 160 all
+cp config/samples.example.tsv config/samples.tsv   # cohort, sample, bam per line
+snakemake -n -p                                    # dry-run: check the plan
+snakemake -p --cores 32 all                        # run
 ```
 
-Reference files are derived from `refdir`; only paths that deviate from the
-standard layout need to be listed under `paths:`. Host-specific notes
-(container sandboxes, scratch layout, resource caps) live in
-[docs/deployment.md](docs/deployment.md) and are not needed on a standard machine.
+Reference paths are derived from `refdir`; list a path under `paths:` only when a
+file does not follow the standard layout. Everything host-specific (container
+sandboxes, scratch layout, resource caps) is in
+[docs/deployment.md](docs/deployment.md) and is not needed on a standard machine.
 
-Run only the annotation layer:
+Run a single layer instead of everything:
 
 ```bash
-snakemake -p --cores 8 \
-  annotation/te_locus.gtf \
-  annotation/annotation_check.tsv \
-  annotation/ervmap_provirus_map.tsv
+snakemake -p --cores 8 annotation/te_locus.gtf annotation/annotation_check.tsv
 ```
+
+## Configuration
+
+`config/config.yaml` holds paths, per-tool switches and resource limits. Each tool
+can be turned off independently (`tools.<name>.run`), and
+`paths.external_gene_dir` optionally brings in pre-computed gene matrices instead
+of quantifying those samples again. See [docs/parameters.md](docs/parameters.md).
 
 ## Output
 
-- `aggregate/erv_expression_long.tsv.gz`: unified long table
-  (tool, cohort, sample, level, feature, region_type, count, milli_div)
-  `milli_div` is filled at **locus level only**; subfamily and ERVmap rows leave it empty.
-- `aggregate/erv_subfamily_evidence.tsv.gz`: subfamily evidence table (n_tools_support, ervmap_support)
-- `standard/`: six per-tool CSV files for the database loader (see below)
-- `annotation/annotation_check.tsv`: difference metrics across annotations
+- `aggregate/erv_expression_long.tsv.gz` — one long table, all tools and both
+  levels: `tool, cohort, sample, level, feature, region_type, count, milli_div`
+  (`milli_div` is filled at locus level only)
+- `aggregate/erv_subfamily_evidence.tsv.gz` — per-subfamily support across tools
+- `standard/` — per-tool CSV files ready for a database loader
+- `gene_expression/` — long table for the loader plus one matrix per cohort
+- `annotation/annotation_check.tsv` — differences between the annotations used
 
 Field definitions are in [docs/output_format.md](docs/output_format.md).
 
-## Relationship to the online database
+## Documentation
 
-The SQL side does **not** read the long table. `ERV-data/rerun_out/db_load/build_import_csvs.sh`
-reads one CSV per tool/level, then maps sample names to pseudonyms, adds `norm_count`
-from its own size factors and loads via `load.sh`. This pipeline therefore also emits
-those files (`standard/`, unified names):
-
-| Standard file | Columns | Loads into |
-|---|---|---|
-| `ervmap_standard.csv` | cohort, sample, chr, start, end, ervmap_id, strand, count | `tool_ervmap` |
-| `tetranscripts_subf_standard.csv` | cohort, sample, subfamily, family, count | `tool_tetranscripts` |
-| `tetranscripts_locus_standard.csv` | cohort, sample, locus, subfamily, family, chr, start, end, strand, count, milli_div | `tool_tetranscripts_locus` (new) |
-| `telescope_locus_standard.csv` | same as above (with milli_div) | `tool_telescope` |
-| `squire_te_standard.csv` | cohort, sample, subfamily, family, count, TE_chr, TE_start, TE_stop, milliDiv, TE_strand | `tool_squire_te` |
-| `squire_subf_standard.csv` | cohort, sample, subfamily, family, count | `tool_squire_subf` |
-| `gene_expression/gene_expression_standard.csv.gz` | cohort, sample, gene_id, gene_symbol, length, count | `gene_expression` (new) |
-| `gene_expression/sample_gene_factor.tsv` | cohort, sample, total_gene_count, n_genes_detected, gene_size_factor, method | `sample_gene_factor` (new) |
-
-Gene expression is loaded as raw counts only, with zero-count rows omitted
-(sparse). `length` is the merged exon length, and `norm_count` on load is
-`count / gene_size_factor`. The gene size factor is estimated independently of
-the ERV one (DESeq2 median-of-ratios across all samples; falls back to library
-size and says so in `method`), because reusing the ERV factor would import the
-ERV composition of each library into the gene layer.
-
-Two consequences for the SQL side:
-
-1. `build_import_csvs.sh` must point at the new file names (`standard/` paths);
-   the conversion logic itself is unchanged.
-2. The locus-level TEtranscripts output needs a new table `tool_tetranscripts_locus`
-   with the same columns as `tool_telescope`.
-
-The loader keeps only families `ERV1 / ERVK / ERVL / ERVL-MaLR`, so the 3,387 loci
-annotated as `ERVL?` or `ERV1?` (0.49%) are dropped at load time by design.
-
-## Validation status (measured on this machine)
-
-| Item | Result |
+| File | Contents |
 |---|---|
-| ERV annotation (chr1-22/X/Y, one rmsk fragment per locus) | **693,078 loci**, 550 subfamilies |
-| Full-TE annotation (SQuIRE reference) | **4,520,928 loci**, 1,180 subfamilies |
-| Our ERV loci vs SQuIRE native ERV loci | 693,078 vs 693,078, **0 differences** (row-wise) |
-| Annotation build time | 12 s |
-| ERVmap composition mapping | 3,220 loci: 2,821 hit a provirus, 399 fell back to rmsk |
-| Telescope, one sample, 15.7M fragments | **16 min 42 s**, peak **2.45 GB**, assignment rate 96.7% |
-| Telescope output | 5,881 loci with records (5,194 with counts) |
-| SQuIRE Count on a STAR BAM, 1M read pairs | **1 min 36 s**, peak **3.2 GB**, both output levels written |
-| TEcount, one sample | **1 h 24 min**, peak **2.61 GB** |
+| [docs/installation.md](docs/installation.md) | dependencies, reference data, container images |
+| [docs/usage.md](docs/usage.md) | sample sheet, running and resuming, outputs |
+| [docs/annotation.md](docs/annotation.md) | why each tool gets a different annotation, with measurements |
+| [docs/literature.md](docs/literature.md) | how other pipelines handle annotation |
+| [docs/gene_expression.md](docs/gene_expression.md) | gene counts, length definition, optional import mode |
+| [docs/parameters.md](docs/parameters.md) | parameter reference |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | pitfalls established by measurement |
+| [docs/deployment.md](docs/deployment.md) | host-specific notes |
+| [CHECKLIST.md](CHECKLIST.md) | pre-run and post-run checks |
 
-## Key constraints (empirically established)
+## Scope
 
-1. **Telescope must use `--ncpu 1`**: the parallel loader needs a BAM index, and collated BAMs cannot be indexed.
-2. **Telescope's GTF must contain only gene lines**: it does not filter by feature type, and duplicated
-   gene/transcript/exon entries change the result.
-3. **TEcount requires `family_id`/`class_id`** in the TE GTF, otherwise it reports "TE GTF format error".
-4. **SQuIRE Count accepts an external annotation** through `--clean_folder` (one `*.bed` + one `*_copies.txt`),
-   but that folder must contain **no `*.log`** file: `getlibsize()` parses the first `*.log` it finds and
-   crashes if the expected STAR lines are missing.
-5. **Only primary chromosomes are kept** (chr1-22, X, Y). alt/fix/random contigs are named differently from
-   the contigs in the BAM headers, so those annotation rows can never receive a read; chrM carries no ERV.
+Subfamily level is comparable across all four tools. Locus level is mapped onto a
+common coordinate set but never re-allocated between loci; differences between
+tools at that level are expected and should be read as such.
+
+## Citation
+
+Cite the four tools and the reference releases listed in [CITATION.md](CITATION.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
