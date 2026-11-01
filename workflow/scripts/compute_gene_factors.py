@@ -45,7 +45,7 @@ for cohort in sorted({c for c, _ in order}):
     with gzip.open(path, "rt") as fh:
         header = fh.readline().rstrip("\n").split("\t")
     df = pd.read_csv(path, sep="\t", index_col=0,
-                     dtype={c: np.float32 for c in header[1:]})
+                     dtype={c: np.int64 for c in header[1:]})
     blocks.append(df)
 
 if not blocks:
@@ -55,6 +55,10 @@ mat = pd.concat(blocks, axis=1)
 cols = [(c, s) for c, s in order if s in mat.columns]
 mat = mat[[s for _, s in cols]]
 
+# Counts are read as int64. float32 would halve memory but cannot represent
+# single-gene counts above 2**24 exactly, and summing ~60k counts per sample
+# then leaves total_gene_count off by a few counts. The size factor uses logs,
+# where that rounding would not matter, but the reported total must be exact.
 total = mat.sum(axis=0)
 detected = (mat > 0).sum(axis=0)
 
