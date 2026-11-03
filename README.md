@@ -92,6 +92,13 @@ Subfamily level is comparable across all four tools. Locus level is mapped onto 
 common coordinate set but never re-allocated between loci; differences between
 tools at that level are expected and should be read as such.
 
+## Related
+
+- [ERV-motif](https://github.com/SunPast/ERV-motif) — static annotation of
+  transcription-factor binding motifs in each ERV subfamily's consensus
+  sequence. It has no sample dimension and joins the tables produced here on
+  `subfamily`.
+
 ## Citation
 
 Cite the four tools and the reference releases listed in [CITATION.md](CITATION.md).
