@@ -21,6 +21,7 @@ SAMPLES = config.get("samples", "config/samples.example.tsv")
 OUTDIR  = config["outdir"]
 
 include: "rules/common.smk"
+include: "rules/alignment.smk"
 include: "rules/annotation.smk"
 include: "rules/tetranscripts.smk"
 include: "rules/telescope.smk"

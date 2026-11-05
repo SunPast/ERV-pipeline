@@ -49,9 +49,52 @@ def sdir(tool, cohort, sample):
 def cohort_dir(tool, cohort):
     return f"{OUTDIR}/{tool}/{cohort}"
 
+# -----------------------------------------------------------------------------
+# BAM input validation
+#
+# Two failure modes hit the 2026-10 run and silently produced unusable counts:
+#   1. samples.tsv resolving to a STAR intermediate (`*.tmp.NNNN.bam`) instead
+#      of the final sorted BAM -> ~1/30 of the reads (916 genes detected);
+#   2. a "final" BAM that was actually truncated (no BGZF EOF block), which
+#      featureCounts rejects and htslib-based tools read to the truncation point.
+# Both are cheap to detect up front: suffix check plus the 28-byte EOF marker.
+# -----------------------------------------------------------------------------
+_BGZF_EOF = bytes.fromhex(
+    "1f8b08040000000000ff0600424302001b0003000000000000000000"
+)
+_BAM_OK = {}
+
+def check_bam(path):
+    if path in _BAM_OK:
+        return _BAM_OK[path]
+    base = os.path.basename(path)
+    if ".tmp." in base:
+        raise ValueError(
+            f"BAM points at a STAR temp shard, not a final BAM: {path}"
+        )
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"BAM does not exist: {path}")
+    with open(path, "rb") as fh:
+        fh.seek(-len(_BGZF_EOF), os.SEEK_END)
+        if fh.read(len(_BGZF_EOF)) != _BGZF_EOF:
+            raise ValueError(
+                "BAM is missing the BGZF EOF block (truncated or still being "
+                f"written): {path}"
+            )
+    _BAM_OK[path] = True
+    return True
+
+def aligned_bam(cohort, sample):
+    """BAM produced by this pipeline's fastp -> STAR -> samtools stage."""
+    return f"{OUTDIR}/bam/{cohort}/{sample}/{sample}.sorted.bam"
+
 # Sampler: Snakemake 8 uses input functions; here we keep a 7/8-compatible lambda form
 def bam_of(wildcards):
-    return next(s["bam"] for s in SAMPLES if s["sample"] == wildcards.sample)
+    s = next(s for s in SAMPLES if s["sample"] == wildcards.sample)
+    if s.get("fq1"):
+        return aligned_bam(s["cohort"], s["sample"])
+    check_bam(s["bam"])
+    return s["bam"]
 
 def fq_of(wildcards):
     s = next(s for s in SAMPLES if s["sample"] == wildcards.sample)

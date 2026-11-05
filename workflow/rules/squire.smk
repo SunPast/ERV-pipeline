@@ -48,6 +48,7 @@ rule squire_count:
         outdir = lambda wc: sdir("squire", wc.cohort, wc.sample),
         tmp = tmp_dir,
         ref = P["squire_ref"],
+        read_length = config["tools"]["squire"].get("read_length", 36),
         # Built by rule squire_clean_folder from the full-TE map, on local disk.
         clean = f"{OUTDIR}/annotation/squire_clean",
         apptainer = apptainer(),
@@ -72,7 +73,7 @@ rule squire_count:
             --clean_folder {params.clean} \
             --count_folder {params.outdir} \
             --tempfolder "$tmp" \
-            --read_length 36 --fetch_folder {params.ref} \
+            --read_length {params.read_length} --fetch_folder {params.ref} \
             --pthreads {threads} --name {wildcards.sample} && \
         rm -rf "$tmp"
         """
@@ -94,6 +95,7 @@ rule squire_map:
     params:
         outdir = lambda wc: f"{OUTDIR}/squire_map/{wc.cohort}/{wc.sample}",
         ref = P["squire_ref"],
+        read_length = config["tools"]["squire"].get("read_length", 36),
         apptainer = apptainer(),
         sif = P["squire_sif"],
         fq_root = P["fastq_root"],
@@ -106,7 +108,7 @@ rule squire_map:
             --bind {params.outdir}:{params.outdir} \
             {params.sif} squire Map \
             --read1 {input.fq1} --read2 {input.fq2} \
-            --map_folder {params.outdir} --read_length 36 \
+            --map_folder {params.outdir} --read_length {params.read_length} \
             --fetch_folder {params.ref} --pthreads {threads} \
             --name {wildcards.sample}
         """

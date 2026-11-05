@@ -41,6 +41,11 @@ paths:
   # ---- runtime ----
   telescope_bin:   /data/home/dingjia/ERV-data/envs/telescope/bin
   featurecounts_bin: /data/data2/envs/conda_envs/ega/bin
+  # ---- FASTQ -> BAM stage (optional; used when samples.tsv has fq1/fq2) ----
+  fastp_bin:       /data/data2/envs/conda_envs/fastp/bin
+  star_bin:        /data/data2/envs/conda_envs/ega/bin
+  samtools_bin:    /data/data2/envs/conda_envs/samtools1/bin
+  star_index:      /data/data2/reference/hg38_squire2/hg38_STAR
   apptainer_bin:   /data/home/dingjia/ERV-data/envs/apptainer/bin
   # Sandbox directories, NOT .sif files. squashfuse is missing on this host, so
   # every `apptainer exec <sif>` unpacks the whole image into $TMPDIR first
@@ -94,6 +99,23 @@ tmp_roots:
 # Per-tool strategy (hard-coded so there is only ever one answer)
 # -----------------------------------------------------------------------------
 tools:
+  fastp:
+    run: true              # false = feed raw FASTQ straight to STAR
+    threads: 8
+    mem_mb: 4000
+    min_length: 36                # TCASIA: --length_required
+    qualified_quality_phred: 20   # TCASIA default
+    unqualified_percent_limit: 40 # TCASIA default
+    n_base_limit: 5               # TCASIA default
+    extra: ""
+
+  star:
+    threads: 12
+    mem_mb: 40000
+    out_filter_mismatch_nmax: 15      # TCASIA default
+    limit_bam_sort_ram: 39050942993   # TCASIA default
+    extra: ""
+
   tetranscripts:
     run: true
     level: [locus, subfamily]     # locus from the canonical GTF; subfamily by aggregation
@@ -111,6 +133,7 @@ tools:
                      # Measured: 15.7M fragments in 940 s on one core, 2.45 GB peak.
 
   squire:
+    read_length: 36     # SQuIRE --read_length; set to the sequencing read length
     run: true
     level: [locus, subfamily]     # one Count run writes both files
     # Measured on one BAM, four clean_folders, compared over 545 ERV subfamilies:

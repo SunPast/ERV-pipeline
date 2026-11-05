@@ -53,6 +53,19 @@ Run a single layer instead of everything:
 snakemake -p --cores 8 annotation/te_locus.gtf annotation/annotation_check.tsv
 ```
 
+## Input modes
+
+The pipeline starts from either FASTQ or BAM; no external alignment step is required.
+
+| samples.tsv | What runs |
+|---|---|
+| `fq1` + `fq2` filled | `fastp` → `STAR` → `samtools sort/index` → four quantification tools |
+| `bam` filled | quantification tools only (legacy cohorts) |
+
+Alignment is paired-end only. Every supplied BAM is validated before use:
+`*.tmp.*` STAR shards are rejected, and a missing BGZF EOF block (truncated file)
+aborts the run instead of silently producing partial counts.
+
 ## Configuration
 
 `config/config.yaml` holds paths, per-tool switches and resource limits. Each tool
@@ -106,3 +119,19 @@ Cite the four tools and the reference releases listed in [CITATION.md](CITATION.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+### Alignment parameters
+
+The FASTQ stage mirrors TCASIA_pipeline (`workflows/01_alignment`) so that BAMs and
+gene counts are directly comparable:
+
+| Step | Parameters |
+|---|---|
+| fastp | `--length_required 36 --qualified_quality_phred 20 --unqualified_percent_limit 40 --n_base_limit 5`, `--detect_adapter_for_pe` for paired-end |
+| STAR | `--outSAMunmapped Within --outFilterMismatchNmax 15 --outSAMattributes All --outFilterIntronMotifs RemoveNoncanonical --outSAMstrandField intronMotif --twopassMode Basic --quantMode GeneCounts --outSAMtype BAM Unsorted` |
+| samtools | `sort` then `index` |
+| featureCounts | `-p -t exon -g gene_id` (unstranded) |
+
+TCASIA_pipeline requires paired-end input. Single-end is supported here as an
+extension: `--detect_adapter_for_pe` is dropped and STAR receives one read file.
+
