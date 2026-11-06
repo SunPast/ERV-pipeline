@@ -34,7 +34,11 @@ rule gene_counts:
         """
         mkdir -p {params.tmp} $(dirname {log:q})
         export TMPDIR={params.tmp}
-        {params.bin}/featureCounts -T {threads} -p -t exon -g gene_id \
+        # -O: allow a read to be counted for every gene it overlaps.
+        # Without it, featureCounts drops shared reads as Unassigned_Ambiguity;
+        # EEF1G is fully covered by the lncRNA AP002990.1 on the same strand and
+        # ended up with 1-6 counts in 171/4289 samples (69,892 reads in the BAM).
+        {params.bin}/featureCounts -T {threads} -p -O -t exon -g gene_id \
             -a {input.gtf:q} -o {output:q} {input.bam:q} >> {log} 2>&1
         rm -rf {params.tmp}
         """
